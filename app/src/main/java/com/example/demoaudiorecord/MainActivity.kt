@@ -11,13 +11,19 @@ import android.os.Bundle
 import android.widget.Button
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
+import com.google.firebase.Firebase
+import com.google.firebase.database.DataSnapshot
+import com.google.firebase.database.DatabaseError
+import com.google.firebase.database.ValueEventListener
+import com.google.firebase.database.database
+import com.google.firebase.database.getValue
 import java.io.File
 import java.io.IOException
 import kotlin.experimental.and
 
 class MainActivity : AppCompatActivity() {
     private val sampleRate = 44100
-    private val channelConfig = AudioFormat.CHANNEL_IN_STEREO
+    private val channelConfig = AudioFormat.CHANNEL_IN_MONO
     private val audioFormat = AudioFormat.ENCODING_PCM_16BIT
     private val bufferSize = AudioRecord.getMinBufferSize(sampleRate, channelConfig, audioFormat)
     private val audioData = ShortArray(bufferSize)
@@ -30,6 +36,27 @@ class MainActivity : AppCompatActivity() {
     private var playbackThread: Thread? = null
 
     private var visualizerView: PlayerVisualizerView? = null
+
+    private val recordRef by lazy {
+        Firebase.database("https://fir-audio-record-3bd06-default-rtdb.asia-southeast1.firebasedatabase.app/").getReference("record")
+    }
+    private val playbackRef by lazy {
+        Firebase.database("https://fir-audio-record-3bd06-default-rtdb.asia-southeast1.firebasedatabase.app/").getReference("record")
+    }
+    private val listener by lazy {
+        object: ValueEventListener {
+            override fun onDataChange(snapshot: DataSnapshot) {
+                snapshot.getValue<String>()?.let {
+                    val shortArray = decodeStringToShortArray(it)
+                    audioTrack?.write(shortArray, 0, shortArray.size)
+                }
+            }
+
+            override fun onCancelled(error: DatabaseError) {
+
+            }
+        }
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -55,10 +82,12 @@ class MainActivity : AppCompatActivity() {
         playStopButton.setOnClickListener {
             if (isPlaying) {
                 stopPlayback()
-                playStopButton.text = "Start Playback"
+                playStopButton.text = "Start Listening"
+                playbackRef.removeEventListener(listener)
             } else {
                 startPlayback()
-                playStopButton.text = "Stop Playback"
+                playStopButton.text = "Stop Listening"
+                playbackRef.addValueEventListener(listener)
             }
         }
     }
@@ -114,10 +143,11 @@ class MainActivity : AppCompatActivity() {
                     val bytesRead = audioRecord?.read(audioData, 0, bufferSize) ?: 0
                     if (bytesRead > 0) {
                         // Convert short array to byte array
-                        val byteData = ShortArrayToByteArray(audioData)
-                        outputStream.write(byteData, 0, byteData.size)
-                        audioTrack?.write(audioData, 0, bytesRead)
-                        visualizerView?.updateVisualizer(byteData)
+//                        val byteData = ShortArrayToByteArray(audioData)
+//                        outputStream.write(byteData, 0, byteData.size)
+//                        audioTrack?.write(audioData, 0, bytesRead)
+//                        visualizerView?.updateVisualizer(byteData)
+                        recordRef.setValue(encodeShortArrayToString(audioData))
                     }
                 }
 
@@ -141,14 +171,14 @@ class MainActivity : AppCompatActivity() {
     private fun startPlayback() {
         val minBufferSize = AudioTrack.getMinBufferSize(
             sampleRate,
-            AudioFormat.CHANNEL_OUT_STEREO,
+            AudioFormat.CHANNEL_OUT_MONO,
             audioFormat
         )
 
         audioTrack = AudioTrack(
             android.media.AudioManager.STREAM_MUSIC,
             sampleRate,
-            AudioFormat.CHANNEL_OUT_STEREO,
+            AudioFormat.CHANNEL_OUT_MONO,
             audioFormat,
             minBufferSize,
             AudioTrack.MODE_STREAM
@@ -189,4 +219,13 @@ class MainActivity : AppCompatActivity() {
 
         return shortArray
     }
+}
+
+fun encodeShortArrayToString(shortArray: ShortArray, delimiter: String = ","): String {
+    return shortArray.joinToString(delimiter)
+}
+
+fun decodeStringToShortArray(encodedString: String, delimiter: String = ","): ShortArray {
+    val stringArray = encodedString.split(delimiter)
+    return ShortArray(stringArray.size) { stringArray[it].toShort() }
 }

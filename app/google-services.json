@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "119011430899",
+    "project_id": "fir-audio-record-3bd06",
+    "storage_bucket": "fir-audio-record-3bd06.appspot.com"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:119011430899:android:ece091c48ac26f8e0b8286",
+        "android_client_info": {
+          "package_name": "com.example.demoaudiorecord"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCQgMOGhD0Qm4BB46p9nfo-ZmXO3TzvyPQ"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
