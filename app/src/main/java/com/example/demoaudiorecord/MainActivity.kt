@@ -1,25 +1,32 @@
 package com.example.demoaudiorecord
 
 import android.Manifest
+import android.app.NotificationChannel
+import android.app.NotificationManager
+import android.content.Context
 import android.content.pm.PackageManager
 import android.media.AudioFormat
 import android.media.AudioRecord
 import android.media.AudioTrack
 import android.media.MediaRecorder
-import androidx.appcompat.app.AppCompatActivity
+import android.os.Build
 import android.os.Bundle
+import android.util.Log
 import android.widget.Button
+import android.widget.Toast
+import androidx.appcompat.app.AppCompatActivity
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
+import com.google.android.gms.tasks.OnCompleteListener
 import com.google.firebase.Firebase
 import com.google.firebase.database.DataSnapshot
 import com.google.firebase.database.DatabaseError
 import com.google.firebase.database.ValueEventListener
 import com.google.firebase.database.database
 import com.google.firebase.database.getValue
+import com.google.firebase.messaging.FirebaseMessaging
 import java.io.File
 import java.io.IOException
-import kotlin.experimental.and
 
 class MainActivity : AppCompatActivity() {
     private val sampleRate = 44100
@@ -62,6 +69,19 @@ class MainActivity : AppCompatActivity() {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
 
+        createNotificationChannel()
+        FirebaseMessaging.getInstance().token.addOnCompleteListener(OnCompleteListener { task ->
+            if (!task.isSuccessful) {
+                Log.wtf("TRUNGLE", "Fetching FCM registration token failed", task.exception)
+                return@OnCompleteListener
+            }
+
+            // Get new FCM registration token
+            val token = task.result
+            Log.wtf("TRUNGLE", token)
+            Toast.makeText(baseContext, token, Toast.LENGTH_SHORT).show()
+        })
+
         visualizerView = findViewById(R.id.visualizerView)
         val startStopButton: Button = findViewById(R.id.startStopButton)
         val playStopButton: Button = findViewById(R.id.playStopButton)
@@ -94,11 +114,12 @@ class MainActivity : AppCompatActivity() {
 
     private fun checkPermissions(): Boolean {
         if (ContextCompat.checkSelfPermission(this, Manifest.permission.RECORD_AUDIO)
+            != PackageManager.PERMISSION_GRANTED && ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS)
             != PackageManager.PERMISSION_GRANTED
         ) {
             ActivityCompat.requestPermissions(
                 this,
-                arrayOf(Manifest.permission.RECORD_AUDIO),
+                arrayOf(Manifest.permission.RECORD_AUDIO, Manifest.permission.POST_NOTIFICATIONS),
                 1
             )
             return false
@@ -110,6 +131,9 @@ class MainActivity : AppCompatActivity() {
         if (ActivityCompat.checkSelfPermission(
                 this,
                 Manifest.permission.RECORD_AUDIO
+            ) != PackageManager.PERMISSION_GRANTED && ActivityCompat.checkSelfPermission(
+                this,
+                Manifest.permission.POST_NOTIFICATIONS
             ) != PackageManager.PERMISSION_GRANTED
         ) {
             // TODO: Consider calling
@@ -196,28 +220,20 @@ class MainActivity : AppCompatActivity() {
         playbackThread?.join()
     }
 
-    private fun ShortArrayToByteArray(data: ShortArray): ByteArray {
-        val byteArray = ByteArray(data.size * 2)
-        var index = 0
+    private fun createNotificationChannel() {
+        // Create the NotificationChannel, but only on API 26+ because
+        // the NotificationChannel class is new and not in the support library
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
 
-        for (value in data) {
-            byteArray[index++] = (value and 0xFF).toByte()
-            byteArray[index++] = ((value.toInt() shr 8) and 0xFF).toByte()
+            val importance = NotificationManager.IMPORTANCE_DEFAULT
+            val channel = NotificationChannel("VNPAY Test", "VNPAY Test", importance).apply {
+                description = "VNPAY Test"
+            }
+            // Register the channel with the system
+            val notificationManager: NotificationManager =
+                getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+            notificationManager.createNotificationChannel(channel)
         }
-
-        return byteArray
-    }
-
-    private fun ByteArrayToShortArray(data: ByteArray, bytesRead: Int): ShortArray {
-        val shortArray = ShortArray(bytesRead / 2)
-        var index = 0
-
-        for (i in 0 until bytesRead step 2) {
-            val value = (data[i].toInt() and 0xFF) or ((data[i + 1].toInt() and 0xFF) shl 8)
-            shortArray[index++] = value.toShort()
-        }
-
-        return shortArray
     }
 }
 
